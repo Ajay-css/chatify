@@ -7,7 +7,7 @@ let io;
 export function initSocket(server) {
   io = new Server(server, {
     cors: {
-      origin: "https://ajay-chat.onrender.com/", // ✅ allow only your frontend
+      origin: "https://ajay-chat.onrender.com", // ✅ allow only your frontend
       credentials: true,
     },
   });
