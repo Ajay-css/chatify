@@ -1,21 +1,20 @@
-import { useChatStore } from "../store/useChatStore";
 import { useEffect, useRef } from "react";
+import { useChatStore } from "../store/useChatStore.js";
+import { useAuthStore } from "../store/useAuthStore.js";
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
-import { useAuthStore } from "../store/useAuthStore.js";
 import { formatMessageTime } from "../lib/utils.js";
 
 const ChatContainer = () => {
-  const {
-    messages,
-    getMessages,
-    isMessagesLoading,
-    selectedUser,
-    subscribeToMessages,
-    unsubscribeFromMessages,
-    updateMessagesAsSeen,   // ✅ new
-  } = useChatStore();
+  // ✅ Zustand selectors
+  const messages = useChatStore((state) => state.messages);
+  const getMessages = useChatStore((state) => state.getMessages);
+  const isMessagesLoading = useChatStore((state) => state.isMessagesLoading);
+  const selectedUser = useChatStore((state) => state.selectedUser);
+  const subscribeToMessages = useChatStore((state) => state.subscribeToMessages);
+  const unsubscribeFromMessages = useChatStore((state) => state.unsubscribeFromMessages);
+  const updateMessagesAsSeen = useChatStore((state) => state.updateMessagesAsSeen);
 
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
@@ -41,7 +40,14 @@ const ChatContainer = () => {
         socket.off("messagesSeen");
       }
     };
-  }, [selectedUser?._id, socket, getMessages, subscribeToMessages, unsubscribeFromMessages, updateMessagesAsSeen]);
+  }, [
+    selectedUser?._id,
+    socket,
+    getMessages,
+    subscribeToMessages,
+    unsubscribeFromMessages,
+    updateMessagesAsSeen,
+  ]);
 
   // Auto scroll on new messages
   useEffect(() => {
