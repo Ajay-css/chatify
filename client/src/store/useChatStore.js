@@ -18,7 +18,7 @@ export const useChatStore = create((set, get) => ({
   getUsers: async () => {
     try {
       set({ isUsersLoading: true });
-      const res = await axios.get("/api/users");
+      const res = await axios.get("/users");
       set({ users: res.data, isUsersLoading: false });
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -42,7 +42,7 @@ export const useChatStore = create((set, get) => ({
   getMessages: async (userId) => {
     try {
       set({ isMessagesLoading: true });
-      const res = await axios.get(`/api/messages/${userId}`);
+      const res = await axios.get(`/messages/${userId}`);
       set({ messages: res.data, isMessagesLoading: false });
     } catch (error) {
       console.error("Error fetching messages:", error);
@@ -53,7 +53,7 @@ export const useChatStore = create((set, get) => ({
   // ✅ Send message (text, image, file)
   sendMessage: async (receiverId, content, type = "text") => {
     try {
-      const res = await axios.post(`/api/messages/${receiverId}`, { content, type });
+      const res = await axios.post(`/messages/${receiverId}`, { content, type });
       set((state) => ({
         messages: [...state.messages, res.data],
       }));
