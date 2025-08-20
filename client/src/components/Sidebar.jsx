@@ -8,8 +8,10 @@ const Sidebar = () => {
     setSelectedUser,
     selectedUser,
     unreadMessages,
+    getMessages,
   } = useChatStore();
 
+  // fetch users on mount
   useEffect(() => {
     getUsers();
   }, [getUsers]);
@@ -25,7 +27,10 @@ const Sidebar = () => {
           {users.map((user) => (
             <li
               key={user._id}
-              onClick={() => setSelectedUser(user)}
+              onClick={() => {
+                setSelectedUser(user);     // ✅ fixes your error
+                getMessages(user._id);     // ✅ auto-load messages
+              }}
               className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition
                 ${
                   selectedUser?._id === user._id
