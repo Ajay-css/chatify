@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { io } from "socket.io-client";
 import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
+import { useAuthStore } from "./useAuthStore.js"; // ✅ use the existing socket from AuthStore
 
 export const useChatStore = create((set, get) => ({
   users: [],
@@ -11,8 +11,6 @@ export const useChatStore = create((set, get) => ({
 
   isUsersLoading: false,
   isMessagesLoading: false,
-
-  socket: null,
 
   // ✅ Fetch all users except logged-in
   getUsers: async () => {
@@ -57,60 +55,19 @@ export const useChatStore = create((set, get) => ({
         messages: [...state.messages, res.data],
       }));
 
-      const { socket } = get();
+      const { socket } = useAuthStore.getState(); // ✅ use same socket as ChatContainer
       if (socket) socket.emit("sendMessage", res.data);
     } catch (error) {
       console.error("Error sending message:", error.response?.data || error.message);
     }
   },
 
-  // ✅ Initialize socket
-  initSocket: () => {
-    const { socket } = get();
-    if (socket) return;
-
-    const newSocket = io(import.meta.env.VITE_API_URL, {
-      withCredentials: true,
-    });
-
-    newSocket.on("connect", () => {
-      console.log("✅ Socket connected");
-    });
-
-    // incoming message
-    newSocket.on("receiveMessage", (message) => {
-      const { selectedUser } = get();
-
-      if (selectedUser?._id === message.senderId) {
-        // already chatting with this user
-        set((state) => ({
-          messages: [...state.messages, message],
-        }));
-      } else {
-        // increment unread count
-        set((state) => {
-          const unread = { ...state.unreadMessages };
-          unread[message.senderId] = (unread[message.senderId] || 0) + 1;
-          return { unreadMessages: unread };
-        });
-        toast.success("New message received!");
-      }
-    });
-
-    set({ socket: newSocket });
-  },
-
-  disconnectSocket: () => {
-    const { socket } = get();
-    if (socket) {
-      socket.disconnect();
-      set({ socket: null });
-    }
-  },
+  // ❌ Removed initSocket → we don’t create socket here anymore
+  // ❌ Removed disconnectSocket
 
   // ✅ Subscribe to socket messages
   subscribeToMessages: () => {
-    const { socket } = get();
+    const { socket } = useAuthStore.getState(); // ✅ shared socket
     if (!socket) return;
 
     socket.on("receiveMessage", (message) => {
@@ -133,7 +90,7 @@ export const useChatStore = create((set, get) => ({
 
   // ✅ Unsubscribe to prevent memory leaks
   unsubscribeFromMessages: () => {
-    const { socket } = get();
+    const { socket } = useAuthStore.getState();
     if (socket) {
       socket.off("receiveMessage");
     }
