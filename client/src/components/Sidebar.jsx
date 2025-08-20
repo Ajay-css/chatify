@@ -2,25 +2,36 @@ import { useEffect } from "react";
 import { useChatStore } from "../store/useChatStore.js";
 
 const Sidebar = () => {
+  // ✅ keep your old state values
   const {
     users,
-    getUsers,
-    setSelectedUser,
     selectedUser,
     unreadMessages,
-    getMessages,
-  } = useChatStore();
+    isUsersLoading,
+  } = useChatStore((state) => ({
+    users: state.users,
+    selectedUser: state.selectedUser,
+    unreadMessages: state.unreadMessages,
+    isUsersLoading: state.isUsersLoading,
+  }));
 
-  // fetch users only on mount
+  // ✅ safely grab functions (instead of destructuring all at once)
+  const getUsers = useChatStore((state) => state.getUsers);
+  const setSelectedUser = useChatStore((state) => state.setSelectedUser);
+  const getMessages = useChatStore((state) => state.getMessages);
+
+  // fetch users on mount
   useEffect(() => {
     getUsers();
-  }, []); // ✅ fixed infinite loop
+  }, [getUsers]);
 
   return (
     <div className="w-64 h-full bg-base-200 p-4 overflow-y-auto">
       <h2 className="text-lg font-bold mb-4">Chats</h2>
 
-      {users.length === 0 ? (
+      {isUsersLoading ? (
+        <p className="text-sm text-gray-500">Loading users...</p>
+      ) : users.length === 0 ? (
         <p className="text-sm text-gray-500">No users found</p>
       ) : (
         <ul className="space-y-2">
@@ -28,8 +39,8 @@ const Sidebar = () => {
             <li
               key={user._id}
               onClick={() => {
-                setSelectedUser(user);     // ✅ select user
-                getMessages(user._id);     // ✅ auto-load messages
+                setSelectedUser(user);     // ✅ old function preserved
+                getMessages(user._id);     // ✅ old function preserved
               }}
               className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition
                 ${
