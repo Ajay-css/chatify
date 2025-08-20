@@ -1,13 +1,12 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
-import { getReceiverSocketId, getIO } from "../lib/socket.js";  // ✅ use getIO instead of io
+import { getReceiverSocketId, getIO } from "../lib/socket.js";
 import cloudinary from "../lib/cloudinary.js";
 
 export const getUsersForSidebar = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
     const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
-
     res.status(200).json(filteredUsers);
   } catch (error) {
     console.error("Error in getUsersForSidebar: ", error.message);
@@ -27,6 +26,22 @@ export const getMessages = async (req, res) => {
       ],
     });
 
+    // ✅ Mark received messages as seen
+    await Message.updateMany(
+      { senderId: userToChatId, receiverId: myId, seen: false },
+      { $set: { seen: true, seenAt: new Date() } }
+    );
+
+    // ✅ Notify sender via socket
+    const io = getIO();
+    const senderSocketId = getReceiverSocketId(userToChatId);
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("messagesSeen", {
+        userId: myId,
+        seenAt: new Date(),
+      });
+    }
+
     res.status(200).json(messages);
   } catch (error) {
     console.log("Error in getMessages controller: ", error.message);
@@ -36,15 +51,26 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { text, image } = req.body;
+    const { text, image, file, fileType } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
-    let imageUrl;
+    let imageUrl, fileUrl;
+
+    // ✅ If image
     if (image) {
-      // Upload base64 image to cloudinary
-      const uploadResponse = await cloudinary.uploader.upload(image);
+      const uploadResponse = await cloudinary.uploader.upload(image, {
+        resource_type: "image",
+      });
       imageUrl = uploadResponse.secure_url;
+    }
+
+    // ✅ If file (video/pdf/others)
+    if (file) {
+      const uploadResponse = await cloudinary.uploader.upload(file, {
+        resource_type: fileType === "video" ? "video" : "raw",
+      });
+      fileUrl = uploadResponse.secure_url;
     }
 
     const newMessage = new Message({
@@ -52,11 +78,12 @@ export const sendMessage = async (req, res) => {
       receiverId,
       text,
       image: imageUrl,
+      fileUrl,
+      fileType,
     });
 
     await newMessage.save();
 
-    // ✅ Use getIO() instead of importing io
     const io = getIO();
     const receiverSocketId = getReceiverSocketId(receiverId);
     if (receiverSocketId) {

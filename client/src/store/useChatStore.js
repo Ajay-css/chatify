@@ -93,5 +93,15 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  updateMessagesAsSeen: (userId, seenAt) =>
+    set((state) => {
+      const updatedMessages = state.messages.map((msg) =>
+        msg.senderId === state.authUser._id && msg.receiverId === userId
+          ? { ...msg, seen: true, seenAt }
+          : msg
+      );
+      return { messages: updatedMessages };
+    }),
+
   setSelectedUser: (selectedUser) => set({ selectedUser }),
 }));
