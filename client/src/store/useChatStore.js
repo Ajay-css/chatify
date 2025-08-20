@@ -107,4 +107,44 @@ export const useChatStore = create((set, get) => ({
       set({ socket: null });
     }
   },
+
+  // ✅ Subscribe to socket messages
+  subscribeToMessages: () => {
+    const { socket } = get();
+    if (!socket) return;
+
+    socket.on("receiveMessage", (message) => {
+      const { selectedUser } = get();
+
+      if (selectedUser?._id === message.senderId) {
+        set((state) => ({
+          messages: [...state.messages, message],
+        }));
+      } else {
+        set((state) => {
+          const unread = { ...state.unreadMessages };
+          unread[message.senderId] = (unread[message.senderId] || 0) + 1;
+          return { unreadMessages: unread };
+        });
+        toast.success("New message received!");
+      }
+    });
+  },
+
+  // ✅ Unsubscribe to prevent memory leaks
+  unsubscribeFromMessages: () => {
+    const { socket } = get();
+    if (socket) {
+      socket.off("receiveMessage");
+    }
+  },
+
+  // ✅ Update messages as seen
+  updateMessagesAsSeen: (userId, seenAt) => {
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg.senderId === userId ? { ...msg, seen: true, seenAt } : msg
+      ),
+    }));
+  },
 }));
