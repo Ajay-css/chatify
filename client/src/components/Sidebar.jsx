@@ -11,10 +11,10 @@ const Sidebar = () => {
     getMessages,
   } = useChatStore();
 
-  // fetch users on mount
+  // fetch users only on mount
   useEffect(() => {
     getUsers();
-  }, [getUsers]);
+  }, []); // ✅ fixed infinite loop
 
   return (
     <div className="w-64 h-full bg-base-200 p-4 overflow-y-auto">
@@ -28,7 +28,7 @@ const Sidebar = () => {
             <li
               key={user._id}
               onClick={() => {
-                setSelectedUser(user);     // ✅ fixes your error
+                setSelectedUser(user);     // ✅ select user
                 getMessages(user._id);     // ✅ auto-load messages
               }}
               className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition
