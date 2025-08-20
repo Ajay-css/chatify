@@ -1,8 +1,7 @@
-// src/store/useChatStore.js
 import { create } from "zustand";
 import { io } from "socket.io-client";
 import axios from "axios";
-import toast from "react-hot-toast"; // ✅ Add toast
+import toast from "react-hot-toast";
 
 export const useChatStore = create((set, get) => ({
   users: [],
@@ -15,6 +14,7 @@ export const useChatStore = create((set, get) => ({
 
   socket: null,
 
+  // ✅ Fetch all users except logged-in
   getUsers: async () => {
     try {
       set({ isUsersLoading: true });
@@ -26,10 +26,11 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  // ✅ Set selected chat user and reset unread
   setSelectedUser: (user) => {
     const { unreadMessages } = get();
     const updatedUnread = { ...unreadMessages };
-    delete updatedUnread[user._id]; // reset unread
+    delete updatedUnread[user._id];
 
     set({
       selectedUser: user,
@@ -37,6 +38,7 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
+  // ✅ Fetch messages with a user
   getMessages: async (userId) => {
     try {
       set({ isMessagesLoading: true });
@@ -48,32 +50,38 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  // ✅ Send message (text, image, file)
   sendMessage: async (receiverId, content, type = "text") => {
     try {
-      const res = await axios.post("/api/messages", {
-        receiverId,
-        content,
-        type,
-      });
-
+      const res = await axios.post(`/api/messages/${receiverId}`, { content, type });
       set((state) => ({
         messages: [...state.messages, res.data],
       }));
+
+      // Emit via socket
+      const { socket } = get();
+      if (socket) socket.emit("sendMessage", res.data);
     } catch (error) {
       console.error("Error sending message:", error);
     }
   },
 
+  // ✅ Connect socket.io
   connectSocket: () => {
+    const { authUser, users } = get();
+    if (!authUser) return;
+
     const socket = io(import.meta.env.VITE_BACKEND_URL, {
-      withCredentials: true,
+      query: { userId: authUser._id },
+      transports: ["websocket"],
     });
 
+    // Handle incoming messages
     socket.on("newMessage", (message) => {
-      const { selectedUser, unreadMessages, users } = get();
+      const { selectedUser, unreadMessages } = get();
 
       if (selectedUser && selectedUser._id === message.senderId) {
-        // Chat is open → show in chat directly
+        // Chat is open → append directly
         set((state) => ({
           messages: [...state.messages, message],
         }));
@@ -86,18 +94,19 @@ export const useChatStore = create((set, get) => ({
           },
         });
 
-        // ✅ Find sender name for toast
         const sender = users.find((u) => u._id === message.senderId);
-        toast.success(`New message from ${sender?.fullName || "Someone"}`);
+        toast.success(`💬 New message from ${sender?.fullName || "Someone"}`);
       }
     });
 
     set({ socket });
+    window.socket = socket; // ✅ global access
   },
 
   disconnectSocket: () => {
     const { socket } = get();
     if (socket) socket.disconnect();
     set({ socket: null });
+    window.socket = null;
   },
 }));
