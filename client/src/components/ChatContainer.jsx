@@ -1,42 +1,52 @@
 import { useEffect, useRef } from "react";
-import { useChatStore } from "../store/useChatStore.js";
-import { useAuthStore } from "../store/useAuthStore.js";
+import { useAuthStore } from "../store/authStore.js";
+import { useChatStore } from "../store/chatStore.js";
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { formatMessageTime } from "../lib/utils.js";
 
-const ChatContainer = () => {
-  // ✅ Zustand selectors
-  const messages = useChatStore((state) => state.messages);
-  const getMessages = useChatStore((state) => state.getMessages);
-  const isMessagesLoading = useChatStore((state) => state.isMessagesLoading);
-  const selectedUser = useChatStore((state) => state.selectedUser);
-  const subscribeToMessages = useChatStore((state) => state.subscribeToMessages);
-  const unsubscribeFromMessages = useChatStore((state) => state.unsubscribeFromMessages);
-  const updateMessagesAsSeen = useChatStore((state) => state.updateMessagesAsSeen);
+const ChatContainer = ({ selectedUser }) => {
+  const {
+    messages,
+    getMessages,
+    isMessagesLoading,
+    subscribeToMessages,
+    unsubscribeFromMessages,
+    updateMessagesAsSeen,
+  } = useChatStore();
 
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
 
-  // Load messages + subscribe
+  // ⬇️ Auto-scroll when messages change
+  useEffect(() => {
+    if (messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  // 📩 Fetch messages + handle socket events
   useEffect(() => {
     if (!selectedUser) return;
 
     getMessages(selectedUser._id);
 
     if (socket) {
-      subscribeToMessages();
+      subscribeToMessages(socket);
 
-      // ✅ listen for "messagesSeen"
+      socket.emit("markMessagesAsSeen", { userId: selectedUser._id });
+
       socket.on("messagesSeen", ({ userId, seenAt }) => {
-        updateMessagesAsSeen(userId, seenAt);
+        if (userId === selectedUser._id) {
+          updateMessagesAsSeen(userId, seenAt);
+        }
       });
     }
 
     return () => {
       if (socket) {
-        unsubscribeFromMessages();
+        unsubscribeFromMessages(socket);
         socket.off("messagesSeen");
       }
     };
@@ -49,125 +59,71 @@ const ChatContainer = () => {
     updateMessagesAsSeen,
   ]);
 
-  // Auto scroll on new messages
-  useEffect(() => {
-    if (messageEndRef.current && messages) {
-      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
-
-  if (!selectedUser) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-gray-500">
-        Select a user to start chatting
-      </div>
-    );
-  }
-
-  if (isMessagesLoading) {
-    return (
-      <div className="flex-1 flex flex-col overflow-auto">
-        <ChatHeader />
-        <MessageSkeleton />
-        <MessageInput />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex-1 flex flex-col overflow-auto">
-      <ChatHeader />
+    <div className="flex flex-col h-full">
+      {/* ✅ Old ChatHeader restored */}
+      {selectedUser && <ChatHeader user={selectedUser} />}
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message, index) => {
-          const isLastMessageByMe =
-            message.senderId === authUser._id &&
-            index === messages.length - 1;
-
-          return (
+      <div className="chat-container flex-1 p-4 overflow-y-auto">
+        {isMessagesLoading ? (
+          <MessageSkeleton />
+        ) : (
+          messages.map((message) => (
             <div
               key={message._id}
-              className={`chat ${message.senderId === authUser._id ? "chat-end" : "chat-start"}`}
-              ref={messageEndRef}
+              className={`chat ${
+                message.senderId === authUser._id ? "chat-end" : "chat-start"
+              }`}
             >
-              <div className="chat-image avatar">
-                <div className="size-10 rounded-full border">
-                  <img
-                    src={
-                      message.senderId === authUser._id
-                        ? authUser.profilePic || "/avatar.png"
-                        : selectedUser.profilePic || "/avatar.png"
-                    }
-                    alt="profile pic"
-                  />
-                </div>
-              </div>
+              <div className="chat-bubble">
+                {/* ✅ Handle both text/content */}
+                {message.text || message.content ? (
+                  <p>{message.text || message.content}</p>
+                ) : null}
 
-              <div className="chat-header mb-1">
-                <time className="text-xs opacity-50 ml-1">
-                  {formatMessageTime(message.createdAt)}
-                </time>
-              </div>
-
-              <div className="chat-bubble flex flex-col">
                 {/* Image */}
                 {message.image && (
                   <img
                     src={message.image}
-                    alt="Attachment"
-                    className="sm:max-w-[200px] rounded-md mb-2"
+                    alt="attachment"
+                    className="max-w-xs rounded-md mt-2"
                   />
                 )}
 
                 {/* Video */}
                 {message.fileType === "video" && message.fileUrl && (
-                  <video controls className="sm:max-w-[250px] rounded-md mb-2">
+                  <video controls className="max-w-xs rounded-md mt-2">
                     <source src={message.fileUrl} type="video/mp4" />
-                    Your browser does not support video playback.
+                    Your browser does not support the video tag.
                   </video>
                 )}
 
-                {/* PDF */}
-                {message.fileType === "pdf" && message.fileUrl && (
+                {/* Document */}
+                {message.fileType === "document" && message.fileUrl && (
                   <a
                     href={message.fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-500 underline"
+                    className="text-blue-500 underline mt-2 block"
                   >
-                    📄 View PDF
+                    View Document
                   </a>
                 )}
 
-                {/* Other files */}
-                {message.fileType &&
-                  !["video", "pdf", "image"].includes(message.fileType) && (
-                    <a
-                      href={message.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-500 underline"
-                    >
-                      📂 Download File
-                    </a>
-                  )}
-
-                {/* Text */}
-                {message.text && <p>{message.text}</p>}
+                {/* ✅ Old feature: show time */}
+                <span className="text-xs text-gray-400 ml-2">
+                  {formatMessageTime(message.createdAt)}
+                </span>
               </div>
-
-              {/* ✅ Seen info */}
-              {isLastMessageByMe && message.seen && message.seenAt && (
-                <div className="text-xs text-blue-500 mt-1 ml-auto">
-                  Seen {formatMessageTime(message.seenAt)}
-                </div>
-              )}
             </div>
-          );
-        })}
+          ))
+        )}
+        {/* ✅ Ref outside loop */}
+        <div ref={messageEndRef} />
       </div>
 
-      <MessageInput />
+      {/* ✅ Old MessageInput restored */}
+      {selectedUser && <MessageInput receiverId={selectedUser._id} />}
     </div>
   );
 };
